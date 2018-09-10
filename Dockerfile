@@ -23,25 +23,29 @@ RUN apk add docker
 RUN memb=$(grep "^docker:" /etc/group | sed -e 's/^.*:\([^:]*\)$/\1/g') [ "${memb}x" = "x" ] && memb=${USER} || memb="${memb},${USER}"
 RUN sed -e "s/^docker:\(.*\):\([^:]*\)$/docker:\1:${memb}/g" -i /etc/group
 
-ENV NODE_VERSION 9.11.2
-RUN addgroup -g 1000 node \
-    && adduser -u 1000 -G node -s /bin/sh -D node \
-    && apk add --no-cache \
-        libstdc++ python curl \
+ENV NODE_VERSION 8.10.0
+
+# Install dependencies
+RUN addgroup -g 1000 -S leap \
+    && adduser -u 1000 -S leap -G leap \
+    && apk update \
+    && apk upgrade \
+    && apk add --no-cache libstdc++ \
     && apk add --no-cache --virtual .build-deps \
+    && apk add bash \
         binutils-gold \
         curl \
         g++ \
         gcc \
+        git \
         gnupg \
         libgcc \
         linux-headers \
         make \
-        python \
-    && curl -SLO "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION.tar.xz" \
-    && curl -SLO --compressed "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt.asc" \
-    && gpg --batch --decrypt --output SHASUMS256.txt SHASUMS256.txt.asc \
-    && grep " node-v$NODE_VERSION.tar.xz\$" SHASUMS256.txt | sha256sum -c - \
+        python
+
+# Install NodeJS
+RUN curl -SLO "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION.tar.xz" \
     && tar -xf "node-v$NODE_VERSION.tar.xz" \
     && cd "node-v$NODE_VERSION" \
     && ./configure \
@@ -50,7 +54,7 @@ RUN addgroup -g 1000 node \
     && apk del .build-deps \
     && cd .. \
     && rm -Rf "node-v$NODE_VERSION" \
-    && rm "node-v$NODE_VERSION.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt
+    && rm "node-v$NODE_VERSION.tar.xz"
 
 ENV YARN_VERSION 1.7.0
 
@@ -64,6 +68,7 @@ RUN apk add --no-cache --virtual .build-deps-yarn curl gnupg tar \
   && ln -s /opt/yarn-v$YARN_VERSION/bin/yarnpkg /usr/local/bin/yarnpkg \
   && rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz \
   && apk del .build-deps-yarn
+
 
 
 RUN curl -O https://bootstrap.pypa.io/get-pip.py && python get-pip.py
@@ -90,6 +95,14 @@ RUN ssh-keygen -f /etc/ssh/ssh_host_dsa_key -N '' -t dsa
 COPY git-https-client.crt /var/jenkins_home/keys/git-https-client.crt
 COPY git-https-client.key /var/jenkins_home/keys/git-https-client.key
 
+# Install prerequisites for Docker
+ENV KUBERNETES_VERSION=v1.8.1
+# Set up Kubernetes
+RUN apk update ;apk add curl
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$KUBERNETES_VERSION/bin/linux/amd64/kubectl
+RUN chmod +x ./kubectl
+RUN mv ./kubectl /usr/local/bin/kubectl
+RUN apk add git
 
 EXPOSE 22
 RUN su - jenkins
