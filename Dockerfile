@@ -56,31 +56,20 @@ RUN curl -SLO "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION.tar.xz
     && rm -Rf "node-v$NODE_VERSION" \
     && rm "node-v$NODE_VERSION.tar.xz"
 
-ENV YARN_VERSION 1.7.0
-
-RUN apk add --no-cache --virtual .build-deps-yarn curl gnupg tar \
-  && for key in \
-    6A010C5166006599AA17F08146C2130DFD2497F5 \
-  ; do \
-    gpg --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "$key" || \
-    gpg --keyserver hkp://ipv4.pool.sks-keyservers.net --recv-keys "$key" || \
-    gpg --keyserver hkp://pgp.mit.edu:80 --recv-keys "$key" ; \
-  done \
-  && curl -fSLO --compressed "https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz" \
-  && curl -fSLO --compressed "https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz.asc" \
-  && gpg --batch --verify yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz \
-  && mkdir -p /opt \
-  && tar -xzf yarn-v$YARN_VERSION.tar.gz -C /opt/ \
-  && ln -s /opt/yarn-v$YARN_VERSION/bin/yarn /usr/local/bin/yarn \
-  && ln -s /opt/yarn-v$YARN_VERSION/bin/yarnpkg /usr/local/bin/yarnpkg \
-  && rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz \
-  && apk del .build-deps-yarn
-
 RUN curl -O https://bootstrap.pypa.io/get-pip.py && python get-pip.py
 RUN pip install awscli --upgrade
 RUN npm config set unsafe-perm true
 RUN npm install gulp@3.9.1 -g
 RUN npm install npm@5.6.0 -g
+
+# Install prerequisites for Docker
+ENV KUBERNETES_VERSION=v1.8.1
+# Set up Kubernetes
+RUN apk update ;apk add curl
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$KUBERNETES_VERSION/bin/linux/amd64/kubectl
+RUN chmod +x ./kubectl
+RUN mv ./kubectl /usr/local/bin/kubectl
+RUN apk add git
 
 # Add user jenkins to the image
 RUN adduser -D jenkins
@@ -97,18 +86,6 @@ RUN mkdir -p /var/run/sshd
 RUN ssh-keygen -f /etc/ssh/ssh_host_rsa_key -N '' -t rsa
 RUN ssh-keygen -f /etc/ssh/ssh_host_dsa_key -N '' -t dsa
 
-COPY git-https-client.crt /var/jenkins_home/keys/git-https-client.crt
-COPY git-https-client.key /var/jenkins_home/keys/git-https-client.key
-
-# Install prerequisites for Docker
-ENV KUBERNETES_VERSION=v1.8.1
-# Set up Kubernetes
-RUN apk update ;apk add curl
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$KUBERNETES_VERSION/bin/linux/amd64/kubectl
-RUN chmod +x ./kubectl
-RUN mv ./kubectl /usr/local/bin/kubectl
-RUN apk add git
-
 EXPOSE 22
-RUN su - jenkins
+USER jenkins
 CMD ["/usr/sbin/sshd","-D"]
